@@ -3,11 +3,12 @@ import test from "node:test";
 import { aggregateNormal, normalisePeriod } from "../src/climate.js";
 
 /** Builds a synthetic Open-Meteo daily payload where each value may be a constant or a function of the ISO date. */
-function daily({ start, end, max, min, rain, sun, wind }) {
+function daily({ start, end, max, min, rain, sun, wind, humidity = 60 }) {
   const time = [];
   const series = {
     temperature_2m_max: [],
     temperature_2m_min: [],
+    relative_humidity_2m_mean: [],
     precipitation_sum: [],
     sunshine_duration: [],
     wind_speed_10m_mean: [],
@@ -20,6 +21,7 @@ function daily({ start, end, max, min, rain, sun, wind }) {
     time.push(iso);
     series.temperature_2m_max.push(resolve(max, iso));
     series.temperature_2m_min.push(resolve(min, iso));
+    series.relative_humidity_2m_mean.push(resolve(humidity, iso));
     series.precipitation_sum.push(resolve(rain, iso));
     series.sunshine_duration.push(resolve(sun, iso));
     series.wind_speed_10m_mean.push(resolve(wind, iso));
@@ -47,6 +49,7 @@ test("averages constant daily values into monthly and annual figures", () => {
   assert.equal(normal.monthly.length, 12);
   assert.equal(month(normal, "Jan").high, 20);
   assert.equal(month(normal, "Jan").low, 10);
+  assert.equal(month(normal, "Jan").humidity, 60);
   assert.equal(month(normal, "Jan").wind, 5);
   assert.equal(month(normal, "Jan").rain, 31, "average January rainfall is 31 days x 1 mm");
   assert.equal(month(normal, "Jan").sunny, 1, "one hour of sunshine per day");
@@ -57,6 +60,7 @@ test("averages constant daily values into monthly and annual figures", () => {
   assert.equal(month(normal, "Feb").rain, 28.5);
 
   assert.equal(normal.annual.high, 20);
+  assert.equal(normal.annual.humidity, 60);
   assert.equal(normal.annual.rain, 365.5, "mean annual total: 731 mm over two years");
   assert.equal(normal.annual.sunny, 1);
   assert.equal(normal.coverage.startYear, 2020);
@@ -118,7 +122,7 @@ test("skips missing days instead of treating them as zero", () => {
   assert.equal(normal.coverage.sampleDays, 31);
 });
 
-test("reports missing sunshine or wind as absent rather than zero", () => {
+test("reports missing sunshine, wind or humidity as absent rather than zero", () => {
   const payload = daily({
     start: "2020-01-01",
     end: "2020-12-31",
@@ -127,15 +131,43 @@ test("reports missing sunshine or wind as absent rather than zero", () => {
     rain: 0,
     sun: null,
     wind: 0,
+    humidity: null,
   });
 
   const normal = aggregateNormal(payload);
   assert.equal(normal.coverage.hasSunshine, false);
   assert.equal(normal.coverage.hasWind, true);
+  assert.equal(normal.coverage.hasHumidity, false);
   assert.equal(month(normal, "Jan").sunny, null);
   assert.equal(month(normal, "Jan").sunshineHours, null);
+  assert.equal(month(normal, "Jan").humidity, null);
   assert.equal(normal.annual.sunny, null);
   assert.equal(normal.annual.sunshineHours, null);
+  assert.equal(normal.annual.humidity, null);
+});
+
+test("averages humidity over recorded days only", () => {
+  const payload = daily({
+    start: "2020-01-01",
+    end: "2020-01-31",
+    max: 10,
+    min: 0,
+    rain: 0,
+    sun: 0,
+    wind: 0,
+    humidity: 80,
+  });
+
+  // Half the days recorded at 80%, the other half at 40% => 60% mean.
+  payload.relative_humidity_2m_mean.forEach((_, index) => {
+    if (index >= 16) payload.relative_humidity_2m_mean[index] = 40;
+  });
+  // A missing day must not be counted as 0%.
+  payload.relative_humidity_2m_mean[0] = null;
+
+  const normal = aggregateNormal(payload);
+  assert.equal(month(normal, "Jan").humidity, 60);
+  assert.equal(normal.coverage.hasHumidity, true);
 });
 
 test("excludes stub months from monthly rainfall totals", () => {

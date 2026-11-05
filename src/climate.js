@@ -9,13 +9,14 @@ export const MONTH_LABELS = [
 ];
 
 /**
- * Daily ERA5 reanalysis variables. `sunshine_duration` is in seconds and
- * `wind_speed_10m_mean` is a daily mean wind speed, which is exactly the
- * "average" the comparison table needs.
+ * Daily ERA5 reanalysis variables. `sunshine_duration` is in seconds,
+ * `wind_speed_10m_mean` is a daily mean wind speed, and
+ * `relative_humidity_2m_mean` is the mean relative humidity for the day.
  */
 const DAILY_VARIABLES = [
   "temperature_2m_max",
   "temperature_2m_min",
+  "relative_humidity_2m_mean",
   "precipitation_sum",
   "sunshine_duration",
   "wind_speed_10m_mean",
@@ -55,6 +56,8 @@ const emptyCell = () => ({
   maxCount: 0,
   minSum: 0,
   minCount: 0,
+  humiditySum: 0,
+  humidityCount: 0,
   precipSum: 0,
   precipCount: 0,
   sunSum: 0,
@@ -70,6 +73,8 @@ function addInto(target, source) {
   target.maxCount += source.maxCount;
   target.minSum += source.minSum;
   target.minCount += source.minCount;
+  target.humiditySum += source.humiditySum;
+  target.humidityCount += source.humidityCount;
   target.precipSum += source.precipSum;
   target.precipCount += source.precipCount;
   target.sunSum += source.sunSum;
@@ -100,6 +105,7 @@ function summariseMonth(cells) {
     // Averages ignore missing days entirely, so every recorded day still contributes.
     high: round1(divide(combined.maxSum, combined.maxCount)),
     low: round1(divide(combined.minSum, combined.minCount)),
+    humidity: round1(divide(combined.humiditySum, combined.humidityCount)),
     wind: round1(divide(combined.windSum, combined.windCount)),
     rain: round1(meanPerYear(rainCells, "precipCount", (cell) => cell.precipSum)),
     sunshineHours: round1(meanPerYear(sunCells, "sunCount", (cell) => cell.sunSum / 3600)),
@@ -138,6 +144,12 @@ function bucketByMonth(daily) {
     if (min !== null) {
       cell.minSum += min;
       cell.minCount += 1;
+    }
+
+    const humidity = num(daily.relative_humidity_2m_mean?.[i]);
+    if (humidity !== null) {
+      cell.humiditySum += humidity;
+      cell.humidityCount += 1;
     }
 
     const rain = num(daily.precipitation_sum?.[i]);
@@ -181,6 +193,7 @@ export function aggregateNormal(daily) {
       label: MONTH_LABELS[index],
       high: summary?.high ?? null,
       low: summary?.low ?? null,
+      humidity: summary?.humidity ?? null,
       rain: summary?.rain ?? null,
       sunny: summary?.sunshineHoursPerDay ?? null,
       wind: summary?.wind ?? null,
@@ -196,6 +209,7 @@ export function aggregateNormal(daily) {
   const annual = {
     high: round1(divide(overall.maxSum, overall.maxCount)),
     low: round1(divide(overall.minSum, overall.minCount)),
+    humidity: round1(divide(overall.humiditySum, overall.humidityCount)),
     wind: round1(divide(overall.windSum, overall.windCount)),
     rain: withRain.length ? round1(withRain.reduce((sum, month) => sum + month.rain, 0)) : null,
     sunshineHours: withSun.length
@@ -224,6 +238,7 @@ export function aggregateNormal(daily) {
       // Some coastal/ocean grid cells lack sunshine or wind records.
       hasSunshine: overall.sunCount > 0,
       hasWind: overall.windCount > 0,
+      hasHumidity: overall.humidityCount > 0,
     },
   };
 }
@@ -285,7 +300,7 @@ async function fetchArchive({ latitude, longitude, startYear, endYear }, attempt
 export async function getClimateNormal({ latitude, longitude, years = 10, cache }) {
   const period = normalisePeriod(years);
   const key =
-    `climate:v1:${latitude.toFixed(2)}:${longitude.toFixed(2)}:${period.startYear}-${period.endYear}`;
+    `climate:v2:${latitude.toFixed(2)}:${longitude.toFixed(2)}:${period.startYear}-${period.endYear}`;
 
   const load = async () => {
     const payload = await fetchArchive({ latitude, longitude, ...period });
@@ -303,7 +318,13 @@ export async function getClimateNormal({ latitude, longitude, years = 10, cache 
       },
       requestedPeriod: period,
       ...normal,
-      units: { temperature: "°C", precipitation: "mm", wind: "km/h", sunshine: "h" },
+      units: {
+        temperature: "°C",
+        precipitation: "mm",
+        wind: "km/h",
+        sunshine: "h",
+        humidity: "%",
+      },
     };
   };
 

@@ -6,6 +6,7 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 const METRICS = [
   { key: "high", label: "Avg high", short: "High", field: "high", unit: "temperature", scale: "temperature" },
   { key: "low", label: "Avg low", short: "Low", field: "low", unit: "temperature", scale: "temperature" },
+  { key: "humidity", label: "Humidity", short: "Humidity", field: "humidity", unit: "percent", scale: "humidity" },
   { key: "sunny", label: "Sunshine", short: "Sun", field: "sunny", unit: "hours", scale: "sunshine" },
   { key: "rain", label: "Rain", short: "Rain", field: "rain", unit: "precipitation", scale: "rain" },
   { key: "wind", label: "Wind", short: "Wind", field: "wind", unit: "wind", scale: "wind" },
@@ -81,6 +82,8 @@ function unitInfo(unit) {
         digits: 1,
         convert: (kmh) => (imperial ? kmh * 0.621371 : kmh),
       };
+    case "percent":
+      return { suffix: "%", digits: 0, convert: (value) => value };
     default:
       return { suffix: "h", digits: 1, convert: (hours) => hours };
   }
@@ -119,6 +122,8 @@ function heatColor(scale, t) {
       return `hsla(205, 80%, 45%, ${(0.04 + 0.34 * t).toFixed(3)})`;
     case "sunshine":
       return `hsla(42, 92%, 48%, ${(0.04 + 0.34 * t).toFixed(3)})`;
+    case "humidity":
+      return `hsla(285, 65%, 50%, ${(0.04 + 0.3 * t).toFixed(3)})`;
     default:
       return `hsla(172, 70%, 42%, ${(0.04 + 0.28 * t).toFixed(3)})`;
   }
@@ -453,16 +458,17 @@ function renderSummaries(cities) {
           { class: "summary-stats" },
           stat("Avg high", formatValue(annual.high, "temperature"), temp.suffix),
           stat("Avg low", formatValue(annual.low, "temperature"), temp.suffix),
+          stat("Humidity", formatValue(annual.humidity, "percent"), "%"),
           stat("Rain / year", formatValue(annual.rain, "precipitation"), precip.suffix),
           stat("Sun / day", formatValue(annual.sunny, "hours"), "h"),
           stat("Avg wind", formatValue(annual.wind, "wind"), wind.suffix),
           stat("Wet days", isNumber(annual.rainyDays) ? String(Math.round(annual.rainyDays)) : "—", "/yr"),
         ),
-        coverage.hasSunshine && coverage.hasWind
+        coverage.hasSunshine && coverage.hasWind && coverage.hasHumidity
           ? null
           : h("p", {
               class: "card-alert",
-              text: "This location is missing some sunshine or wind records, so those cells may be empty.",
+              text: "Some records are missing for this location, so a few cells may be empty.",
             }),
       );
     }),
@@ -472,6 +478,19 @@ function renderSummaries(cities) {
 /* ------------------------------------------------------------------ */
 /* render: charts                                                      */
 /* ------------------------------------------------------------------ */
+
+function chartUnitLabel(metric) {
+  switch (metric.key) {
+    case "rain":
+      return `${unitInfo(metric.unit).suffix} per month`;
+    case "sunny":
+      return "hours per day";
+    case "humidity":
+      return "% (mean)";
+    default:
+      return unitInfo(metric.unit).suffix;
+  }
+}
 
 function buildChart(metric, cities, { large = false } = {}) {
   const width = large ? 900 : 430;
@@ -497,10 +516,7 @@ function buildChart(metric, cities, { large = false } = {}) {
       "figcaption",
       {},
       h("span", { text: metric.label }),
-      h("span", {
-        class: "chart-unit",
-        text: metric.key === "rain" ? `${info.suffix} per month` : metric.key === "sunny" ? "hours per day" : info.suffix,
-      }),
+      h("span", { class: "chart-unit", text: chartUnitLabel(metric) }),
     ),
   );
 
@@ -636,19 +652,30 @@ function renderCharts(cities) {
 }
 
 function renderMetricTabs() {
-  const options = [{ key: "all", label: "All metrics" }, ...METRICS.map((m) => ({ key: m.key, label: m.label }))];
-  dom.metricTabs.replaceChildren(
-    ...options.map((option) =>
-      h("button", {
-        type: "button",
-        role: "tab",
-        "data-metric": option.key,
-        "aria-selected": String(state.metric === option.key),
-        class: state.metric === option.key ? "is-active" : undefined,
-        text: option.label,
-      }),
-    ),
-  );
+  // Build once, then only restyle: rebuilding the buttons on every render would
+  // drop keyboard focus and destroy the node the user just clicked.
+  if (dom.metricTabs.childElementCount === 0) {
+    const options = [
+      { key: "all", label: "All metrics" },
+      ...METRICS.map((metric) => ({ key: metric.key, label: metric.label })),
+    ];
+    dom.metricTabs.replaceChildren(
+      ...options.map((option) =>
+        h("button", {
+          type: "button",
+          role: "tab",
+          "data-metric": option.key,
+          text: option.label,
+        }),
+      ),
+    );
+  }
+
+  for (const button of dom.metricTabs.querySelectorAll("button[data-metric]")) {
+    const active = button.dataset.metric === state.metric;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-selected", String(active));
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -789,7 +816,7 @@ function renderFootnote(cities) {
     h(
       "span",
       {},
-      "Rain is the average total for the month; sunshine is the average hours per day; wind is the mean daily wind speed.",
+      "Humidity is the mean relative humidity across the day; rain is the average total for the month; sunshine is the average hours per day; wind is the mean daily wind speed.",
       periodText,
       " Sunshine is modelled from solar radiation, so it can read a little higher than ground-station records.",
     ),

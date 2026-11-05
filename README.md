@@ -7,6 +7,7 @@ year as a whole, across:
 | --- | --- |
 | Avg high | Mean daily maximum temperature |
 | Avg low | Mean daily minimum temperature |
+| Humidity | Mean relative humidity across the day |
 | Sunshine | Average sunshine hours per day (monthly totals are included in the API) |
 | Rain | Average total precipitation for the month, in mm |
 | Wind | Mean daily wind speed |
@@ -32,7 +33,8 @@ changes.
 2. **Daily observations** — `/api/climate` asks the
    [Historical Weather API](https://open-meteo.com/en/docs/historical-weather-api) for daily
    ERA5 reanalysis for the most recent 10 complete calendar years: `temperature_2m_max`,
-   `temperature_2m_min`, `precipitation_sum`, `sunshine_duration`, `wind_speed_10m_mean`.
+   `temperature_2m_min`, `relative_humidity_2m_mean`, `precipitation_sum`,
+   `sunshine_duration`, `wind_speed_10m_mean`.
 3. **Climate normals** — `src/climate.js` reduces ~3,650 daily records per city into twelve
    monthly figures plus an annual summary. Averages ignore missing days, while rainfall and
    sunshine (which are totals, not averages) only use years covering at least 25 days of that
@@ -60,9 +62,10 @@ years were used and whether sunshine/wind records exist for that location.
   and mountain cities are approximated by their nearest grid cell.
 - Sunshine is derived from solar radiation and typically reads a little higher than
   ground-station records (Lisbon measures ~3,700 h/yr here against ~2,800 h from instruments).
-- The free API meters requests by weight: a 10-year city query costs ~130 of 600 units per
-  minute. The server queues city loads two at a time and retries automatically when the
-  service is busy, so adding several cities at once may take a moment on a first visit.
+- The free API meters requests by weight: a 10-year city query costs ~156 of 600 units per
+  minute (one unit per ~12 variable-days), so roughly three new cities per minute. The server
+  queues city loads two at a time and retries automatically when the service is busy, so
+  adding several cities at once may take a moment on a first visit.
 
 ## Tests
 
