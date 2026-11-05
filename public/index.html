@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Climate Compare — average monthly weather for any city</title>
+    <meta
+      name="description"
+      content="Compare average monthly high and low temperatures, sunshine hours, rainfall and wind for cities around the world."
+    />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#2563eb" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b1120" media="(prefers-color-scheme: dark)" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">🌤</span>
+        <div>
+          <h1>Climate Compare</h1>
+          <p class="tagline">Average monthly weather for any city, side by side.</p>
+        </div>
+      </div>
+      <div class="units" id="units" role="group" aria-label="Measurement units">
+        <button type="button" data-units="metric" class="is-active">°C · mm · km/h</button>
+        <button type="button" data-units="imperial">°F · in · mph</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="search-panel" aria-label="Add cities">
+        <form id="search-form" autocomplete="off">
+          <label class="sr-only" for="city-input">Add a city</label>
+          <div class="search-field">
+            <span class="search-icon" aria-hidden="true">⌕</span>
+            <input
+              id="city-input"
+              type="text"
+              placeholder="Add a city — Lisbon, Tokyo, Nairobi…"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded="false"
+              aria-controls="suggestions"
+              spellcheck="false"
+            />
+            <button type="submit" class="add-button">Add</button>
+          </div>
+          <ul id="suggestions" class="suggestions" role="listbox" aria-label="Matching cities" hidden></ul>
+        </form>
+
+        <p class="status" id="status" role="status"></p>
+        <div class="chips" id="chips"></div>
+      </section>
+
+      <section class="empty-state" id="empty-state">
+        <h2>Start with two cities</h2>
+        <p>
+          Pick any place on Earth and compare its average high, average low, sunshine hours,
+          rainfall and wind month by month.
+        </p>
+        <div class="examples" id="examples"></div>
+      </section>
+
+      <section class="compare" id="compare" hidden>
+        <div class="summaries" id="summaries"></div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Monthly averages</h2>
+            <div class="metric-tabs" id="metric-tabs" role="tablist" aria-label="Metric"></div>
+          </div>
+          <div class="charts" id="charts"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Month by month</h2>
+          <div class="table-scroll">
+            <table id="table"></table>
+          </div>
+        </div>
+
+        <p class="footnote" id="footnote"></p>
+      </section>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
