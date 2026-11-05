@@ -1,3 +1,5 @@
+import { createBackend } from "./data.js";
+
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const MAX_CITIES = 6;
 const PALETTE = ["#2563eb", "#e11d48", "#0d9488", "#c2410c", "#7c3aed", "#0891b2"];
@@ -188,10 +190,8 @@ async function loadCity(city) {
   }, 8000);
 
   try {
-    const params = new URLSearchParams({ lat: String(city.latitude), lon: String(city.longitude) });
-    const response = await fetch(`/api/climate?${params}`);
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.error ?? `Request failed (${response.status})`);
+    const api = await backendPromise;
+    const body = await api.loadClimate({ latitude: city.latitude, longitude: city.longitude });
 
     city.data = body;
     city.status = "ready";
@@ -217,7 +217,7 @@ function removeCity(key) {
 let suggestions = [];
 let activeSuggestion = -1;
 let debounceTimer = null;
-let searchController = null;
+let searchSequence = 0;
 
 function closeSuggestions() {
   dom.suggestions.hidden = true;
@@ -263,20 +263,17 @@ function chooseSuggestion(index) {
 }
 
 async function fetchSuggestions(query) {
-  searchController?.abort();
-  searchController = new AbortController();
+  const seq = ++searchSequence;
   try {
-    const response = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`, {
-      signal: searchController.signal,
-    });
-    if (!response.ok) return;
-    const body = await response.json();
-    if (dom.input.value.trim() !== query) return;
-    suggestions = body.results ?? [];
+    const api = await backendPromise;
+    const results = await api.searchCities(query);
+    // Ignore responses that arrived after a newer keystroke.
+    if (seq !== searchSequence || dom.input.value.trim() !== query) return;
+    suggestions = results;
     activeSuggestion = -1;
     renderSuggestions();
   } catch (error) {
-    if (error.name !== "AbortError") console.warn("city search failed", error);
+    console.warn("city search failed", error);
   }
 }
 
@@ -321,9 +318,9 @@ dom.form.addEventListener("submit", async (event) => {
   }
   setStatus(`Searching for “${query}”…`);
   try {
-    const response = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`);
-    const body = await response.json();
-    const first = body.results?.[0];
+    const api = await backendPromise;
+    const results = await api.searchCities(query);
+    const first = results[0];
     if (!first) {
       setStatus(`No city found matching “${query}”.`, true);
       return;
@@ -895,9 +892,9 @@ dom.examples.replaceChildren(
 async function addByName(name) {
   setStatus(`Searching for “${name}”…`);
   try {
-    const response = await fetch(`/api/geocode?q=${encodeURIComponent(name)}`);
-    const body = await response.json();
-    const first = body.results?.[0];
+    const api = await backendPromise;
+    const results = await api.searchCities(name);
+    const first = results[0];
     if (!first) {
       setStatus(`No city found matching “${name}”.`, true);
       return;
@@ -941,5 +938,13 @@ function restoreFromUrl() {
   }
 }
 
-restoreFromUrl();
-render();
+// The backend is either the local API or, in the static build, Open-Meteo directly.
+const backendPromise = createBackend();
+
+async function start() {
+  await backendPromise;
+  restoreFromUrl();
+  render();
+}
+
+start();

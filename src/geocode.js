@@ -1,5 +1,8 @@
 const GEODATA_URL = "https://geocoding-api.open-meteo.com/v1/search";
-const USER_AGENT = "climate-compare/1.0 (local development app)";
+const USER_AGENT = "climate-compare/1.0";
+
+// A User-Agent header is forbidden in browsers, so only send it from Node.
+const REQUEST_HEADERS = typeof window === "undefined" ? { "user-agent": USER_AGENT } : undefined;
 
 export class UpstreamError extends Error {
   constructor(message, status = 502) {
@@ -13,7 +16,7 @@ async function getJson(url) {
   let response;
   try {
     response = await fetch(url, {
-      headers: { "user-agent": USER_AGENT },
+      headers: REQUEST_HEADERS,
       signal: AbortSignal.timeout(15_000),
     });
   } catch (error) {

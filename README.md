@@ -1,5 +1,10 @@
 # Climate Compare
 
+[![Deploy to GitHub Pages](https://github.com/djpnewton/climate_compare/actions/workflows/pages.yml/badge.svg)](https://github.com/djpnewton/climate_compare/actions/workflows/pages.yml)
+
+**Live:** https://djpsoft.com/climate_compare/ — runs entirely in the browser, no backend.
+(The `djpnewton.github.io/climate_compare` alias redirects there.)
+
 Type a city name and compare its average climate with others, month by month and for the
 year as a whole, across:
 
@@ -24,6 +29,30 @@ npm start          # http://localhost:3000
 
 Set `PORT` to use a different port (`PORT=8080 npm start`). `npm run dev` restarts on file
 changes.
+
+## Deploying
+
+Pushes to `main` publish the static build to GitHub Pages via
+[`.github/workflows/pages.yml`](./.github/workflows/pages.yml). The workflow installs
+dependencies, runs the tests, runs `npm run build:static`, and uploads `dist/`.
+
+To build and preview the static site locally:
+
+```bash
+npm run build:static
+npx --yes serve dist    # or any static file server
+```
+
+**What "static" changes.** Pages cannot run the Express server, so in that build the browser
+calls Open-Meteo directly (both APIs send `access-control-allow-origin: *`) and caches
+results in `localStorage` for 30 days. `public/data.js` picks the backend: `/api/*` when
+served by Express, direct calls when `globalThis.__CLIMATE_STATIC__` is set — which the build
+script injects into `index.html`. The aggregation code is shared, so both modes compute
+identical numbers.
+
+The trade-off: the server shares one on-disk cache between visitors (and keeps one shared
+rate-limit budget), whereas the static site caches per browser and each visitor spends their
+own Open-Meteo quota.
 
 ## How it works
 
@@ -80,9 +109,13 @@ months, southern-hemisphere month mapping, and the year-range calculation.
 
 ```text
 server.js          Express app: static files, API routes, request queueing
-src/climate.js     Fetch daily ERA5 data and reduce it to climate normals
-src/geocode.js     City search proxy and result normalisation
+src/normals.js     Pure ERA5 → climate-normal aggregation (shared with the browser)
+src/openmeteo.js   Archive API fetch with retry/backoff (browser-safe)
+src/climate.js     Node-side loader: cache + fetch + aggregation
+src/geocode.js     City search proxy and result normalisation (browser-safe)
 src/cache.js       Two-tier (memory + disk) cache with stale-on-error fallback
-public/            index.html, styles.css, app.js, favicon.svg + PNG app icons
+public/            index.html, styles.css, app.js, data.js, icons
+scripts/           build-static.mjs — assembles dist/ for GitHub Pages
 test/              Aggregation unit tests
+.github/workflows/ pages.yml — test, build and deploy to Pages on push to main
 ```

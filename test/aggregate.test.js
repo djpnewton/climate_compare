@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { aggregateNormal, normalisePeriod } from "../src/climate.js";
+import { aggregateNormal, normalisePeriod } from "../src/normals.js";
 
 /** Builds a synthetic Open-Meteo daily payload where each value may be a constant or a function of the ISO date. */
 function daily({ start, end, max, min, rain, sun, wind, humidity = 60 }) {
